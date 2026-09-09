@@ -1,26 +1,28 @@
-Mutex Program
-nano mutex.c
+Semaphore Program
+Frist command 
+nano semaphore.c
 
 #include <stdio.h>
 #include <pthread.h>
+#include <semaphore.h>
 #include <unistd.h>
 
-pthread_mutex_t mutex;
+sem_t semaphore;
 
 void *process(void *arg)
 {
     int id = *(int *)arg;
 
-    // Lock mutex
-    pthread_mutex_lock(&mutex);
+    // Wait / P operation
+    sem_wait(&semaphore);
 
     // Critical Section
     printf("Process %d entered the critical section\n", id);
     sleep(2);
     printf("Process %d is working...\n", id);
 
-    // Unlock mutex
-    pthread_mutex_unlock(&mutex);
+    // Signal / V operation
+    sem_post(&semaphore);
 
     printf("Process %d left the critical section\n\n", id);
 
@@ -32,8 +34,8 @@ int main()
     pthread_t t1, t2;
     int id1 = 1, id2 = 2;
 
-    // Initialize mutex
-    pthread_mutex_init(&mutex, NULL);
+    // Initialize semaphore with value 1
+    sem_init(&semaphore, 0, 1);
 
     // Create threads
     pthread_create(&t1, NULL, process, &id1);
@@ -43,15 +45,17 @@ int main()
     pthread_join(t1, NULL);
     pthread_join(t2, NULL);
 
-    // Destroy mutex
-    pthread_mutex_destroy(&mutex);
+    // Destroy semaphore
+    sem_destroy(&semaphore);
 
     return 0;
 }
 
+
 Complie and run 
-gcc mutex.c -o mutex -pthread
-./mutex
+gcc semaphore.c -o semaphore -pthread
+./semaphore
+
 
 Sample output 
 Process 1 entered the critical section
