@@ -1,126 +1,72 @@
-Producer-Consumer Problem
+IPC using Pipe
+
 Frist command 
-nano producer_consumer.c
+nano ipc_pipe.c
 
 #include <stdio.h>
-#include <pthread.h>
-#include <semaphore.h>
 #include <unistd.h>
-
-#define BUFFER_SIZE 5
-
-int buffer[BUFFER_SIZE];
-int in = 0;
-int out = 0;
-
-// Semaphores
-sem_t empty;
-sem_t full;
-
-// Mutex
-pthread_mutex_t mutex;
-
-// Producer function
-void *producer(void *arg)
-{
-    int item;
-
-    for (item = 1; item <= 10; item++)
-    {
-        // Wait if buffer is full
-        sem_wait(&empty);
-
-        // Lock buffer
-        pthread_mutex_lock(&mutex);
-
-        // Add item to buffer
-        buffer[in] = item;
-        printf("Producer produced: %d\n", item);
-
-        in = (in + 1) % BUFFER_SIZE;
-
-        // Unlock buffer
-        pthread_mutex_unlock(&mutex);
-
-        // Increase full count
-        sem_post(&full);
-
-        sleep(1);
-    }
-
-    return NULL;
-}
-
-// Consumer function
-void *consumer(void *arg)
-{
-    int item;
-
-    for (int i = 1; i <= 10; i++)
-    {
-        // Wait if buffer is empty
-        sem_wait(&full);
-
-        // Lock buffer
-        pthread_mutex_lock(&mutex);
-
-        // Remove item from buffer
-        item = buffer[out];
-        printf("Consumer consumed: %d\n", item);
-
-        out = (out + 1) % BUFFER_SIZE;
-
-        // Unlock buffer
-        pthread_mutex_unlock(&mutex);
-
-        // Increase empty count
-        sem_post(&empty);
-
-        sleep(2);
-    }
-
-    return NULL;
-}
+#include <string.h>
+#include <sys/types.h>
 
 int main()
 {
-    pthread_t producer_thread, consumer_thread;
+    int pipefd[2];
+    pid_t pid;
 
-    // Initialize semaphores
-    sem_init(&empty, 0, BUFFER_SIZE);
-    sem_init(&full, 0, 0);
+    char message[] = "Hello from Parent Process!";
+    char buffer[100];
 
-    // Initialize mutex
-    pthread_mutex_init(&mutex, NULL);
+    // Create pipe
+    if (pipe(pipefd) == -1)
+    {
+        perror("Pipe creation failed");
+        return 1;
+    }
 
-    // Create producer and consumer threads
-    pthread_create(&producer_thread, NULL, producer, NULL);
-    pthread_create(&consumer_thread, NULL, consumer, NULL);
+    // Create child process
+    pid = fork();
 
-    // Wait for threads
-    pthread_join(producer_thread, NULL);
-    pthread_join(consumer_thread, NULL);
+    if (pid < 0)
+    {
+        perror("Fork failed");
+        return 1;
+    }
 
-    // Destroy semaphores and mutex
-    sem_destroy(&empty);
-    sem_destroy(&full);
-    pthread_mutex_destroy(&mutex);
+    if (pid > 0)
+    {
+        // Parent process
+        close(pipefd[0]);  // Close reading end
+
+        // Write message to pipe
+        write(pipefd[1], message, strlen(message) + 1);
+
+        printf("Parent sent: %s\n", message);
+
+        close(pipefd[1]);  // Close writing end
+    }
+    else
+    {
+        // Child process
+        close(pipefd[1]);  // Close writing end
+
+        // Read message from pipe
+        read(pipefd[0], buffer, sizeof(buffer));
+
+        printf("Child received: %s\n", buffer);
+
+        close(pipefd[0]);  // Close reading end
+    }
 
     return 0;
 }
+ 
+Compile 
+gcc ipc_pipe.c -o ipc_pipe
 
-Complie and run 
-gcc producer_consumer.c -o producer_consumer -pthread
+Run 
+./ipc_pipe
+
 
 Sample output 
-Producer produced: 1
-Consumer consumed: 1
-Producer produced: 2
-Producer produced: 3
-Consumer consumed: 2
-Producer produced: 4
-Producer produced: 5
-Consumer consumed: 3
-Producer produced: 6
-Consumer consumed: 4
-...
+Parent sent: Hello from Parent Process!
+Child received: Hello from Parent Process!
