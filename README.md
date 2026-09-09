@@ -1,67 +1,126 @@
-Semaphore Program
+Producer-Consumer Problem
 Frist command 
-nano semaphore.c
+nano producer_consumer.c
 
 #include <stdio.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <unistd.h>
 
-sem_t semaphore;
+#define BUFFER_SIZE 5
 
-void *process(void *arg)
+int buffer[BUFFER_SIZE];
+int in = 0;
+int out = 0;
+
+// Semaphores
+sem_t empty;
+sem_t full;
+
+// Mutex
+pthread_mutex_t mutex;
+
+// Producer function
+void *producer(void *arg)
 {
-    int id = *(int *)arg;
+    int item;
 
-    // Wait / P operation
-    sem_wait(&semaphore);
+    for (item = 1; item <= 10; item++)
+    {
+        // Wait if buffer is full
+        sem_wait(&empty);
 
-    // Critical Section
-    printf("Process %d entered the critical section\n", id);
-    sleep(2);
-    printf("Process %d is working...\n", id);
+        // Lock buffer
+        pthread_mutex_lock(&mutex);
 
-    // Signal / V operation
-    sem_post(&semaphore);
+        // Add item to buffer
+        buffer[in] = item;
+        printf("Producer produced: %d\n", item);
 
-    printf("Process %d left the critical section\n\n", id);
+        in = (in + 1) % BUFFER_SIZE;
+
+        // Unlock buffer
+        pthread_mutex_unlock(&mutex);
+
+        // Increase full count
+        sem_post(&full);
+
+        sleep(1);
+    }
+
+    return NULL;
+}
+
+// Consumer function
+void *consumer(void *arg)
+{
+    int item;
+
+    for (int i = 1; i <= 10; i++)
+    {
+        // Wait if buffer is empty
+        sem_wait(&full);
+
+        // Lock buffer
+        pthread_mutex_lock(&mutex);
+
+        // Remove item from buffer
+        item = buffer[out];
+        printf("Consumer consumed: %d\n", item);
+
+        out = (out + 1) % BUFFER_SIZE;
+
+        // Unlock buffer
+        pthread_mutex_unlock(&mutex);
+
+        // Increase empty count
+        sem_post(&empty);
+
+        sleep(2);
+    }
 
     return NULL;
 }
 
 int main()
 {
-    pthread_t t1, t2;
-    int id1 = 1, id2 = 2;
+    pthread_t producer_thread, consumer_thread;
 
-    // Initialize semaphore with value 1
-    sem_init(&semaphore, 0, 1);
+    // Initialize semaphores
+    sem_init(&empty, 0, BUFFER_SIZE);
+    sem_init(&full, 0, 0);
 
-    // Create threads
-    pthread_create(&t1, NULL, process, &id1);
-    pthread_create(&t2, NULL, process, &id2);
+    // Initialize mutex
+    pthread_mutex_init(&mutex, NULL);
+
+    // Create producer and consumer threads
+    pthread_create(&producer_thread, NULL, producer, NULL);
+    pthread_create(&consumer_thread, NULL, consumer, NULL);
 
     // Wait for threads
-    pthread_join(t1, NULL);
-    pthread_join(t2, NULL);
+    pthread_join(producer_thread, NULL);
+    pthread_join(consumer_thread, NULL);
 
-    // Destroy semaphore
-    sem_destroy(&semaphore);
+    // Destroy semaphores and mutex
+    sem_destroy(&empty);
+    sem_destroy(&full);
+    pthread_mutex_destroy(&mutex);
 
     return 0;
 }
 
-
 Complie and run 
-gcc semaphore.c -o semaphore -pthread
-./semaphore
-
+gcc producer_consumer.c -o producer_consumer -pthread
 
 Sample output 
-Process 1 entered the critical section
-Process 1 is working...
-Process 1 left the critical section
-
-Process 2 entered the critical section
-Process 2 is working...
-Process 2 left the critical section
+Producer produced: 1
+Consumer consumed: 1
+Producer produced: 2
+Producer produced: 3
+Consumer consumed: 2
+Producer produced: 4
+Producer produced: 5
+Consumer consumed: 3
+Producer produced: 6
+Consumer consumed: 4
+...
